@@ -51,13 +51,11 @@ ART_DIR = os.path.join("artefactos", "v1")
 
 @st.cache_resource
 def load_artifacts():
-    # Rutas
     input_schema_path = os.path.join(ART_DIR, "input_schema.json")
     label_map_path = os.path.join(ART_DIR, "label_map.json")
     policy_path = os.path.join(ART_DIR, "decision_policy.json")
     sample_inputs_path = os.path.join(ART_DIR, "sample_inputs.json")
 
-    # JSONs básicos
     with open(input_schema_path, "r", encoding="utf-8") as f:
         input_schema = json.load(f)
     with open(label_map_path, "r", encoding="utf-8") as f:
@@ -68,11 +66,9 @@ def load_artifacts():
     winner_name = policy["winner"]
     threshold = float(policy.get("threshold", 0.5))
 
-    # Pipeline ganador
     pipe_path = os.path.join(ART_DIR, f"pipeline_{winner_name}.joblib")
     pipe = joblib.load(pipe_path)
 
-    # Sample inputs (para interpretabilidad / dashboard)
     sample_df = None
     if os.path.exists(sample_inputs_path):
         with open(sample_inputs_path, "r", encoding="utf-8") as f:
@@ -98,7 +94,6 @@ Y_PROBA = np.array(POLICY.get("y_pred_proba", [])) if "y_pred_proba" in POLICY e
 # Funciones auxiliares
 # ================================
 def _coerce_and_align(df: pd.DataFrame) -> pd.DataFrame:
-    """Asegura tipos según INPUT_SCHEMA y alinea columnas en el orden esperado."""
     for c, t in INPUT_SCHEMA.items():
         if c not in df.columns:
             df[c] = np.nan
@@ -115,17 +110,13 @@ def _coerce_and_align(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def predict_batch(records, thr=None):
-    """
-    records: dict o lista de dicts con las features de entrada.
-    thr: umbral opcional, si no se pasa se usa THRESHOLD.
-    """
     thr = THRESHOLD if thr is None else float(thr)
 
     if isinstance(records, dict):
         records = [records]
 
     df = _coerce_and_align(pd.DataFrame(records))
-    proba = PIPE.predict_proba(df)[:, 1]  # Prob(RIESGO=1 | x)
+    proba = PIPE.predict_proba(df)[:, 1]
     preds = (proba >= thr).astype(int)
 
     results = []
@@ -154,9 +145,6 @@ def style_primary_box(text, color="#0F766E"):
 
 
 def generate_pdf_report(payload, prediction_dict, pdf_path="reporte_paciente.pdf"):
-    """
-    Genera un PDF simple usando fpdf2 con el resumen de la predicción y los datos ingresados.
-    """
     if not HAS_FPDF:
         raise RuntimeError(
             "fpdf2 no está instalado. Agrega 'fpdf2' a requirements.txt."
@@ -166,35 +154,32 @@ def generate_pdf_report(payload, prediction_dict, pdf_path="reporte_paciente.pdf
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # Título
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Reporte de Riesgo de Preeclampsia", ln=1)
+    pdf.multi_cell(0, 10, "Reporte de Riesgo de Preeclampsia")
 
     pdf.ln(4)
     pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 8, "Resultado del modelo:", ln=1)
+    pdf.multi_cell(0, 8, "Resultado del modelo:")
 
     prob_txt = (
-        f"Clasificación: {prediction_dict['pred_label']}  |  "
-        f"Probabilidad: {prediction_dict['proba']*100:.2f}%"
+        f"Clasificación: {prediction_dict['pred_label']}\n"
+        f"Probabilidad estimada: {prediction_dict['proba']*100:.2f}%\n"
+        f"Umbral usado: {prediction_dict['threshold']}"
     )
-    pdf.cell(0, 8, prob_txt, ln=1)
+    pdf.multi_cell(0, 8, prob_txt)
 
-    pdf.ln(4)
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 8, "Datos ingresados:", ln=1)
+    pdf.ln(3)
+    pdf.multi_cell(0, 8, "Datos ingresados:")
 
     pdf.set_font("Arial", "", 10)
     for k, v in payload.items():
-        line = f"- {k}: {v}"
-        pdf.multi_cell(0, 6, line)
+        pdf.multi_cell(0, 6, f"- {k}: {v}")
 
     pdf.output(pdf_path)
     return pdf_path
 
 
 def get_background_for_shap(max_samples: int = 100):
-    """Devuelve un background pequeño para SHAP usando SAMPLE_DF."""
     if SAMPLE_DF is None or SAMPLE_DF.empty:
         return None
 
@@ -205,7 +190,7 @@ def get_background_for_shap(max_samples: int = 100):
 
 
 # ================================
-# Sidebar: info del modelo
+# Sidebar
 # ================================
 with st.sidebar:
     st.header("ℹ️ Información del modelo")
@@ -238,7 +223,7 @@ with st.sidebar:
 
 
 # ================================
-# Tabs principales (múltiples vistas)
+# TABS
 # ================================
 tab_pred, tab_model, tab_shap, tab_dash, tab_report = st.tabs(
     [
@@ -308,25 +293,10 @@ with tab_pred:
 
         submitted = st.form_submit_button("Calcular riesgo")
 
-    # Hacemos estas variables visibles globalmente para usarlas en el tab Reporte PDF
     prediction_dict = st.session_state.get("prediction_dict")
     payload = st.session_state.get("payload")
 
     if submitted:
-        warnings = []
-        if p_sis < 80 or p_sis > 200:
-            warnings.append(
-                "La presión sistólica está fuera del rango típico clínico (≈80–200)."
-            )
-        if p_dia < 40 or p_dia > 120:
-            warnings.append(
-                "La presión diastólica está fuera del rango típico clínico (≈40–120)."
-            )
-
-        if warnings:
-            for w in warnings:
-                st.warning(w)
-
         payload = {
             "edad": edad,
             "imc": imc,
@@ -342,11 +312,10 @@ with tab_pred:
         results = predict_batch(payload)
         prediction_dict = results[0]
 
-        # guardamos en sesión para otras pestañas
         st.session_state["prediction_dict"] = prediction_dict
         st.session_state["payload"] = payload
 
-    if prediction_dict is not None and payload is not None:
+    if prediction_dict and payload:
         proba_pct = prediction_dict["proba"] * 100
         label = prediction_dict["pred_label"]
 
@@ -356,33 +325,25 @@ with tab_pred:
         if label == "RIESGO":
             style_primary_box(
                 f"<h3 style='margin:0;'>RIESGO ELEVADO</h3>"
-                f"<p style='margin:0;'>Probabilidad estimada de riesgo: "
+                f"<p style='margin:0;'>Probabilidad: "
                 f"<strong>{proba_pct:.2f}%</strong> (umbral = {prediction_dict['threshold']:.2f})</p>",
                 color="#B91C1C",
             )
         else:
             style_primary_box(
                 f"<h3 style='margin:0;'>SIN RIESGO ELEVADO</h3>"
-                f"<p style='margin:0;'>Probabilidad estimada de riesgo: "
+                f"<p style='margin:0;'>Probabilidad: "
                 f"<strong>{proba_pct:.2f}%</strong> (umbral = {prediction_dict['threshold']:.2f})</p>",
                 color="#15803D",
             )
 
         col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            st.metric("Prob. riesgo", f"{proba_pct:.2f} %")
-        with col_b:
-            st.metric("Umbral usado", f"{prediction_dict['threshold']:.2f}")
-        with col_c:
-            st.metric("Clasificación", label)
+        col_a.metric("Prob. riesgo", f"{proba_pct:.2f} %")
+        col_b.metric("Umbral usado", f"{prediction_dict['threshold']:.2f}")
+        col_c.metric("Clasificación", label)
 
         st.markdown("#### Datos ingresados")
         st.dataframe(pd.DataFrame([payload]))
-
-        st.info(
-            "Este resultado debe interpretarse siempre junto con la historia clínica "
-            "y la evaluación de un profesional de la salud."
-        )
 
 # ================================
 # TAB 2: Análisis del modelo
@@ -390,17 +351,11 @@ with tab_pred:
 with tab_model:
     st.subheader("📊 Análisis global del modelo")
 
-    st.markdown("### 1️⃣ Métricas en conjunto de test")
+    st.markdown("### 1️⃣ Métricas en test")
     if TEST_METRICS:
         st.json(TEST_METRICS)
-        st.info(
-            "- **F1** combina precisión y recall.\n"
-            "- **Precisión**: de los casos que el modelo marcó como riesgo, cuántos realmente lo son.\n"
-            "- **Recall**: de los casos de riesgo reales, cuántos detecta el modelo.\n"
-            "- **ROC-AUC** y **PR-AUC** resumen el desempeño en diferentes umbrales."
-        )
     else:
-        st.warning("No se encontraron métricas de test en decision_policy.json.")
+        st.warning("No hay métricas en decision_policy.json")
 
     if (
         Y_TRUE is not None
@@ -410,110 +365,61 @@ with tab_model:
     ):
         y_pred = (Y_PROBA >= THRESHOLD).astype(int)
 
-        # Matriz de confusión
         st.markdown("### 2️⃣ Matriz de confusión")
 
         cm = confusion_matrix(Y_TRUE, y_pred)
         fig, ax = plt.subplots()
         im = ax.imshow(cm, cmap="Blues")
-        ax.set_xlabel("Predicción")
-        ax.set_ylabel("Valor real")
         ax.set_xticks([0, 1])
         ax.set_yticks([0, 1])
         ax.set_xticklabels(["NO RIESGO", "RIESGO"])
         ax.set_yticklabels(["NO RIESGO", "RIESGO"])
-
         for (i, j), val in np.ndenumerate(cm):
             ax.text(j, i, val, ha="center", va="center")
-
         fig.colorbar(im, ax=ax)
         st.pyplot(fig)
-        st.caption("La matriz de confusión muestra aciertos y errores del modelo en cada clase.")
 
-        # Curva ROC
-        st.markdown("### 3️⃣ Curva ROC")
+        st.markdown("### 3️⃣ ROC")
         fpr, tpr, _ = roc_curve(Y_TRUE, Y_PROBA)
         roc_auc = auc(fpr, tpr)
-
         fig2, ax2 = plt.subplots()
-        ax2.plot(fpr, tpr, label=f"ROC (AUC = {roc_auc:.3f})")
-        ax2.plot([0, 1], [0, 1], "--", label="Azar")
-        ax2.set_xlabel("Tasa de falsos positivos (FPR)")
-        ax2.set_ylabel("Tasa de verdaderos positivos (TPR)")
-        ax2.legend()
+        ax2.plot(fpr, tpr, label=f"AUC = {roc_auc:.3f}")
+        ax2.plot([0, 1], [0, 1], "--")
         st.pyplot(fig2)
-        st.caption("Cuanto más se acerque la curva a la esquina superior izquierda, mejor es el modelo.")
 
-        # Curva Precision-Recall
-        st.markdown("### 4️⃣ Curva Precision–Recall")
+        st.markdown("### 4️⃣ Precision–Recall")
         precision, recall, _ = precision_recall_curve(Y_TRUE, Y_PROBA)
         pr_auc = auc(recall, precision)
-
         fig3, ax3 = plt.subplots()
-        ax3.plot(recall, precision, label=f"PR (AUC = {pr_auc:.3f})")
-        ax3.set_xlabel("Recall")
-        ax3.set_ylabel("Precision")
-        ax3.legend()
+        ax3.plot(recall, precision, label=f"AUC = {pr_auc:.3f}")
         st.pyplot(fig3)
-        st.caption(
-            "Especialmente útil cuando la clase positiva es poco frecuente: "
-            "muestra el equilibrio entre detectar casos (recall) y evitar falsos positivos (precision)."
-        )
-
-        st.markdown("### 5️⃣ Importancia de características")
-        st.info(
-            "El modelo ganador es un estimador basado en distancias (NNM/KNN), "
-            "por lo que no expone una importancia de variables nativa. "
-            "Para análisis más fino de qué variables influyen en un caso concreto, "
-            "usa la pestaña de *Interpretabilidad (SHAP)*."
-        )
-    else:
-        st.warning(
-            "Para mostrar matriz de confusión y curvas ROC/PR necesitas guardar `y_true` y "
-            "`y_pred_proba` en decision_policy.json."
-        )
-
-    st.markdown("### 6️⃣ Información del pipeline")
-    st.write(PIPE)
 
 # ================================
-# TAB 3: Interpretabilidad (SHAP)
+# TAB 3: SHAP
 # ================================
 with tab_shap:
-    st.subheader("🧠 Interpretabilidad con SHAP (modelo-agnóstico)")
+    st.subheader("🧠 Interpretabilidad con SHAP")
 
     if not HAS_SHAP:
-        st.warning(
-            "SHAP no está instalado. Agrega `shap` a tu requirements.txt para habilitar esta sección."
-        )
+        st.warning("Instala `shap` para habilitar esta sección.")
     else:
         background_df = get_background_for_shap()
         if background_df is None:
-            st.warning(
-                "No se encontró SAMPLE_DF a partir de sample_inputs.json. "
-                "Agrega ejemplos de pacientes para poder calcular explicaciones SHAP."
-            )
+            st.warning("No hay sample_inputs.json")
         else:
-            st.markdown(
-                "Usamos **SHAP KernelExplainer**, que funciona con cualquier modelo "
-                "(incluyendo modelos basados en distancias como NNM/KNN)."
-            )
-
             X_bg = background_df.to_numpy()
 
-            # Seleccionar un paciente para explicación local
-            st.markdown("#### 1️⃣ Seleccione un paciente de ejemplo")
+            st.markdown("### Seleccionar paciente")
             idx = st.number_input(
-                "Índice del paciente (de sample_inputs.json)",
+                "Índice",
                 min_value=0,
                 max_value=len(background_df) - 1,
                 value=0,
             )
             x_instance = background_df.iloc[[idx]]
 
-            with st.spinner("Calculando valores SHAP (puede tardar unos segundos)..."):
+            with st.spinner("Calculando SHAP..."):
 
-                # KernelExplainer requiere una función que devuelva probabilidades
                 def predict_proba_fn(x):
                     df = pd.DataFrame(x, columns=FEATURES)
                     df_aligned = _coerce_and_align(df)
@@ -522,14 +428,12 @@ with tab_shap:
                 explainer = shap.KernelExplainer(predict_proba_fn, X_bg)
                 shap_vals = explainer.shap_values(x_instance.to_numpy(), nsamples=100)
 
-            # Para binario, shap_vals es una lista [clase0, clase1]; usamos clase positiva
             if isinstance(shap_vals, list) and len(shap_vals) == 2:
                 shap_positive = shap_vals[1]
             else:
                 shap_positive = shap_vals
 
-            st.markdown("#### 2️⃣ Explicación local (para la paciente seleccionada)")
-            st.write("Valores de entrada:")
+            st.markdown("### Explicación local")
             st.dataframe(x_instance)
 
             shap.plots.waterfall(
@@ -543,95 +447,53 @@ with tab_shap:
                 ),
                 show=False,
             )
-            fig_local = plt.gcf()
-            st.pyplot(fig_local)
+            st.pyplot(plt.gcf())
             plt.clf()
 
-            st.markdown("#### 3️⃣ Importancia global")
-            st.info(
-                "Para este tipo de modelo (NNM/KNN) SHAP se calcula de forma local "
-                "para cada individuo. Un summary plot global requeriría precomputar "
-                "valores SHAP para muchas muestras offline y almacenarlos como artefactos. "
-                "Aquí mostramos solo la explicación local para la paciente seleccionada."
-            )
-
 # ================================
-# TAB 4: Dashboard de datos
+# TAB 4: Dashboard
 # ================================
 with tab_dash:
-    st.subheader("📈 Dashboard exploratorio de datos")
+    st.subheader("📈 Dashboard exploratorio")
 
     if SAMPLE_DF is None or SAMPLE_DF.empty:
-        st.warning(
-            "No se encontró sample_inputs.json con datos de ejemplo. "
-            "Agrega este archivo para habilitar el dashboard."
-        )
+        st.warning("No hay sample_inputs.json")
     else:
         df = SAMPLE_DF.copy()
         df_aligned = _coerce_and_align(df)
 
-        st.markdown("### 1️⃣ Vista general de los datos de ejemplo")
         st.dataframe(df.head())
 
-        st.markdown("### 2️⃣ Distribución de variables numéricas")
         numeric_cols = [
             c for c in df_aligned.columns if pd.api.types.is_numeric_dtype(df_aligned[c])
         ]
 
         if numeric_cols:
-            col_var = st.selectbox("Selecciona variable numérica", numeric_cols)
-            fig_hist, ax_hist = plt.subplots()
-            ax_hist.hist(df_aligned[col_var].dropna(), bins=20)
-            ax_hist.set_title(f"Histograma de {col_var}")
-            st.pyplot(fig_hist)
-        else:
-            st.info("No se detectaron variables numéricas para graficar.")
-
-        st.markdown("### 3️⃣ Correlación entre variables numéricas")
-        if len(numeric_cols) >= 2:
-            corr = df_aligned[numeric_cols].corr()
-            fig_corr, ax_corr = plt.subplots()
-            im = ax_corr.imshow(corr, cmap="coolwarm", vmin=-1, vmax=1)
-            ax_corr.set_xticks(range(len(numeric_cols)))
-            ax_corr.set_yticks(range(len(numeric_cols)))
-            ax_corr.set_xticklabels(numeric_cols, rotation=90)
-            ax_corr.set_yticklabels(numeric_cols)
-            fig_corr.colorbar(im, ax=ax_corr)
-            st.pyplot(fig_corr)
-        else:
-            st.info(
-                "Se necesitan al menos dos variables numéricas para la matriz de correlación."
-            )
+            col = st.selectbox("Variable numérica", numeric_cols)
+            fig, ax = plt.subplots()
+            ax.hist(df_aligned[col].dropna(), bins=20)
+            st.pyplot(fig)
 
 # ================================
 # TAB 5: Reporte PDF
 # ================================
 with tab_report:
-    st.subheader("📄 Generar reporte en PDF")
-
-    st.markdown(
-        "El reporte incluye el resultado del modelo y los datos ingresados en la pestaña de **Predicción**."
-    )
+    st.subheader("📄 Generar reporte PDF")
 
     if not HAS_FPDF:
-        st.warning(
-            "Para generar PDF necesitas instalar `fpdf2` y añadirlo a tu requirements.txt."
-        )
+        st.warning("Necesitas instalar `fpdf2`.")
     else:
         prediction_dict = st.session_state.get("prediction_dict")
         payload = st.session_state.get("payload")
 
         if not prediction_dict or not payload:
-            st.info(
-                "Primero realiza una predicción en la pestaña **Predicción**. "
-                "Luego vuelve aquí para descargar el reporte."
-            )
+            st.info("Primero realiza una predicción.")
         else:
-            if st.button("📥 Generar y descargar reporte en PDF"):
+            if st.button("📥 Generar PDF"):
                 pdf_path = generate_pdf_report(payload, prediction_dict)
                 with open(pdf_path, "rb") as f:
                     st.download_button(
-                        label="Descargar reporte",
+                        "Descargar reporte",
                         data=f,
                         file_name="reporte_preeclampsia.pdf",
                         mime="application/pdf",
