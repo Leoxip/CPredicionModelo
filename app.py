@@ -13,7 +13,9 @@ from sklearn.metrics import (
 )
 import matplotlib.pyplot as plt
 
-# Intentamos importar shap (interpretabilidad) y reportlab (PDF)
+# ================================
+# Intentamos importar SHAP (interpretabilidad) y FPDF (PDF)
+# ================================
 try:
     import shap
     HAS_SHAP = True
@@ -21,11 +23,10 @@ except Exception:
     HAS_SHAP = False
 
 try:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.pdfgen import canvas
-    HAS_REPORTLAB = True
+    from fpdf import FPDF
+    HAS_FPDF = True
 except Exception:
-    HAS_REPORTLAB = False
+    HAS_FPDF = False
 
 
 # ================================
@@ -153,41 +154,39 @@ def style_primary_box(text, color="#0F766E"):
 
 
 def generate_pdf_report(payload, prediction_dict, pdf_path="reporte_paciente.pdf"):
-    if not HAS_REPORTLAB:
+    """
+    Genera un PDF simple usando fpdf2 con el resumen de la predicción y los datos ingresados.
+    """
+    if not HAS_FPDF:
         raise RuntimeError(
-            "ReportLab no está instalado. Agrega 'reportlab' a requirements.txt"
+            "fpdf2 no está instalado. Agrega 'fpdf2' a requirements.txt"
         )
 
-    c = canvas.Canvas(pdf_path, pagesize=A4)
-    width, height = A4
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
 
-    line_y = height - 50
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, line_y, "Reporte de Riesgo de Preeclampsia")
-    line_y -= 30
+    # Título
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "Reporte de Riesgo de Preeclampsia", ln=1)
 
-    c.setFont("Helvetica", 11)
-    c.drawString(50, line_y, "Resultado del modelo:")
-    line_y -= 20
-    c.drawString(
-        70,
-        line_y,
-        f"Clasificación: {prediction_dict['pred_label']}  |  Probabilidad: {prediction_dict['proba']*100:.2f}%",
-    )
-    line_y -= 30
+    pdf.ln(4)
+    pdf.set_font("Arial", "", 11)
+    pdf.cell(0, 8, "Resultado del modelo:", ln=1)
 
-    c.setFont("Helvetica", 11)
-    c.drawString(50, line_y, "Datos ingresados:")
-    line_y -= 20
+    prob_txt = f"Clasificación: {prediction_dict['pred_label']}  |  Probabilidad: {prediction_dict['proba']*100:.2f}%"
+    pdf.cell(0, 8, prob_txt, ln=1)
+
+    pdf.ln(4)
+    pdf.set_font("Arial", "", 11)
+    pdf.cell(0, 8, "Datos ingresados:", ln=1)
+
+    pdf.set_font("Arial", "", 10)
     for k, v in payload.items():
-        c.drawString(70, line_y, f"- {k}: {v}")
-        line_y -= 16
-        if line_y < 80:
-            c.showPage()
-            line_y = height - 50
+        line = f"- {k}: {v}"
+        pdf.multi_cell(0, 6, line)
 
-    c.showPage()
-    c.save()
+    pdf.output(pdf_path)
     return pdf_path
 
 
@@ -232,7 +231,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**Estado de librerías:**")
     st.write(f"SHAP disponible: {'✅' if HAS_SHAP else '❌'}")
-    st.write(f"ReportLab disponible: {'✅' if HAS_REPORTLAB else '❌'}")
+    st.write(f"PDF (fpdf2) disponible: {'✅' if HAS_FPDF else '❌'}")
 
 
 # ================================
@@ -629,9 +628,9 @@ with tab_report:
         "El reporte incluye el resultado del modelo y los datos ingresados en la pestaña de **Predicción**."
     )
 
-    if not HAS_REPORTLAB:
+    if not HAS_FPDF:
         st.warning(
-            "Para generar PDF necesitas instalar `reportlab` y añadirlo a tu requirements.txt."
+            "Para generar PDF necesitas instalar `fpdf2` y añadirlo a tu requirements.txt."
         )
     else:
         prediction_dict = st.session_state.get("prediction_dict")
