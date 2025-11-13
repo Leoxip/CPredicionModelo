@@ -1,0 +1,57 @@
+[
+  {
+    "edad": 31,
+    "imc": 33.37,
+    "p_a_sistolica": 121,
+    "p_a_diastolica": 74,
+    "hipertension": "NO",
+    "diabetes": "NO",
+    "creatinina": 1.32,
+    "ant_fam_hiper": "NO",
+    "tec_repro_asistida": "NO"
+  },
+  {
+    "edad": 26,
+    "imc": 19.83,
+    "p_a_sistolica": 121,
+    "p_a_diastolica": 79,
+    "hipertension": "NO",
+    "diabetes": "SI",
+    "creatinina": 1.01,
+    "ant_fam_hiper": "NO",
+    "tec_repro_asistida": "SI"
+  },
+  {
+    "edad": 18,
+    "imc": 22.42,
+    "p_a_sistolica": 126,
+    "p_a_diastolica": 79,
+    "hipertension": "NO",
+    "diabetes": "NO",
+    "creatinina": 1.23,
+    "ant_fam_hiper": "NO",
+    "tec_repro_asistida": "SI"
+  },
+  {
+    "edad": 33,
+    "imc": 21.43,
+    "p_a_sistolica": 134,
+    "p_a_diastolica": 75,
+    "hipertension": "SI",
+    "diabetes": "SI",
+    "creatinina": 1.04,
+    "ant_fam_hiper": "NO",
+    "tec_repro_asistida": "NO"
+  },
+  {
+    "edad": 18,
+    "imc": 30.67,
+    "p_a_sistolica": 125,
+    "p_a_diastolica": 74,
+    "hipertension": "SI",
+    "diabetes": "SI",
+    "creatinina": 0.87,
+    "ant_fam_hiper": "NO",
+    "tec_repro_asistida": "SI"
+  }
+]

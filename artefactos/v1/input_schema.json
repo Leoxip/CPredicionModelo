@@ -1,0 +1,11 @@
+{
+  "edad": "int64",
+  "imc": "float64",
+  "p_a_sistolica": "int64",
+  "p_a_diastolica": "int64",
+  "hipertension": "object",
+  "diabetes": "object",
+  "creatinina": "float64",
+  "ant_fam_hiper": "object",
+  "tec_repro_asistida": "object"
+}
