@@ -146,37 +146,44 @@ def style_primary_box(text, color="#0F766E"):
 
 def generate_pdf_report(payload, prediction_dict, pdf_path="reporte_paciente.pdf"):
     if not HAS_FPDF:
-        raise RuntimeError(
-            "fpdf2 no está instalado. Agrega 'fpdf2' a requirements.txt."
-        )
+        raise RuntimeError("fpdf2 no está instalado. Agrega 'fpdf2' a requirements.txt.")
 
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    pdf.set_font("Arial", "B", 16)
-    pdf.multi_cell(0, 10, "Reporte de Riesgo de Preeclampsia")
+    # ======== REGISTRAMOS LA FUENTE DEJAVU ==========
+    font_path = "fonts/DejaVuSans.ttf"
+    pdf.add_font("DejaVu", "", font_path, uni=True)
+    pdf.set_font("DejaVu", "", 14)
+
+    # ======== TÍTULO ==========
+    pdf.cell(0, 10, "Reporte de Riesgo de Preeclampsia", ln=1)
 
     pdf.ln(4)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 8, "Resultado del modelo:")
+    pdf.set_font("DejaVu", "", 11)
+    pdf.cell(0, 8, "Resultado del modelo:", ln=1)
 
     prob_txt = (
-        f"Clasificación: {prediction_dict['pred_label']}\n"
-        f"Probabilidad estimada: {prediction_dict['proba']*100:.2f}%\n"
-        f"Umbral usado: {prediction_dict['threshold']}"
+        f"Clasificación: {prediction_dict['pred_label']}  |  "
+        f"Probabilidad: {prediction_dict['proba']*100:.2f}%"
     )
+
+    # Usamos multi_cell porque la fuente UTF-8 lo permite
     pdf.multi_cell(0, 8, prob_txt)
 
-    pdf.ln(3)
-    pdf.multi_cell(0, 8, "Datos ingresados:")
+    pdf.ln(4)
+    pdf.cell(0, 8, "Datos ingresados:", ln=1)
 
-    pdf.set_font("Arial", "", 10)
+    pdf.set_font("DejaVu", "", 10)
+
     for k, v in payload.items():
-        pdf.multi_cell(0, 6, f"- {k}: {v}")
+        line = f"- {k}: {v}"
+        pdf.multi_cell(0, 6, line)
 
     pdf.output(pdf_path)
     return pdf_path
+
 
 
 def get_background_for_shap(max_samples: int = 100):
