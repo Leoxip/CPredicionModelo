@@ -159,7 +159,7 @@ def generate_pdf_report(payload, prediction_dict, pdf_path="reporte_paciente.pdf
     """
     if not HAS_FPDF:
         raise RuntimeError(
-            "fpdf2 no está instalado. Agrega 'fpdf2' a requirements.txt"
+            "fpdf2 no está instalado. Agrega 'fpdf2' a requirements.txt."
         )
 
     pdf = FPDF()
@@ -174,7 +174,10 @@ def generate_pdf_report(payload, prediction_dict, pdf_path="reporte_paciente.pdf
     pdf.set_font("Arial", "", 11)
     pdf.cell(0, 8, "Resultado del modelo:", ln=1)
 
-    prob_txt = f"Clasificación: {prediction_dict['pred_label']}  |  Probabilidad: {prediction_dict['proba']*100:.2f}%"
+    prob_txt = (
+        f"Clasificación: {prediction_dict['pred_label']}  |  "
+        f"Probabilidad: {prediction_dict['proba']*100:.2f}%"
+    )
     pdf.cell(0, 8, prob_txt, ln=1)
 
     pdf.ln(4)
@@ -457,28 +460,13 @@ with tab_model:
             "muestra el equilibrio entre detectar casos (recall) y evitar falsos positivos (precision)."
         )
 
-        # Importancia de características (si el modelo la soporta)
-        st.markdown("### 5️⃣ Importancia de características (si aplica)")
-        model = None
-        if hasattr(PIPE, "named_steps"):
-            model = PIPE.named_steps.get("model", None)
-
-        if model is not None and hasattr(model, "feature_importances_"):
-            importances = model.feature_importances_
-            idx = np.argsort(importances)
-
-            fig4, ax4 = plt.subplots()
-            ax4.barh(np.array(FEATURES)[idx], importances[idx])
-            ax4.set_xlabel("Importancia")
-            ax4.set_title("Importancia de variables para el modelo")
-            st.pyplot(fig4)
-            st.caption("Estas variables aportan más información al modelo para decidir el riesgo.")
-        else:
-            st.info(
-                "El estimador final del pipeline no expone `feature_importances_` "
-                "(por ejemplo, k-NN o modelos basados en distancias). "
-                "Usa la pestaña de *Interpretabilidad (SHAP)* para un análisis más detallado."
-            )
+        st.markdown("### 5️⃣ Importancia de características")
+        st.info(
+            "El modelo ganador es un estimador basado en distancias (NNM/KNN), "
+            "por lo que no expone una importancia de variables nativa. "
+            "Para análisis más fino de qué variables influyen en un caso concreto, "
+            "usa la pestaña de *Interpretabilidad (SHAP)*."
+        )
     else:
         st.warning(
             "Para mostrar matriz de confusión y curvas ROC/PR necesitas guardar `y_true` y "
@@ -508,7 +496,7 @@ with tab_shap:
         else:
             st.markdown(
                 "Usamos **SHAP KernelExplainer**, que funciona con cualquier modelo "
-                "(incluyendo k-NN u otros basados en distancias)."
+                "(incluyendo modelos basados en distancias como NNM/KNN)."
             )
 
             X_bg = background_df.to_numpy()
@@ -559,16 +547,13 @@ with tab_shap:
             st.pyplot(fig_local)
             plt.clf()
 
-            st.markdown("#### 3️⃣ Importancia global (summary plot)")
-            shap.summary_plot(
-                shap_positive,
-                background_df,
-                feature_names=FEATURES,
-                show=False,
+            st.markdown("#### 3️⃣ Importancia global")
+            st.info(
+                "Para este tipo de modelo (NNM/KNN) SHAP se calcula de forma local "
+                "para cada individuo. Un summary plot global requeriría precomputar "
+                "valores SHAP para muchas muestras offline y almacenarlos como artefactos. "
+                "Aquí mostramos solo la explicación local para la paciente seleccionada."
             )
-            fig_sum = plt.gcf()
-            st.pyplot(fig_sum)
-            plt.clf()
 
 # ================================
 # TAB 4: Dashboard de datos
